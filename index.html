@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>Fast QR Scanner + Upload</title>
+  <title>QR Scanner + Upload</title>
   <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
   <style>
     body {
@@ -27,10 +27,22 @@
       border-radius: 12px;
       background: #1a1a1a;
       padding: 10px;
+      display: none;
+    }
+
+    .button {
+      background-color: #007bff;
+      color: white;
+      padding: 10px 18px;
+      font-size: 0.9rem;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      margin: 5px;
     }
 
     .upload-label {
-      background-color: #007bff;
+      background-color: #28a745;
       color: white;
       padding: 10px 18px;
       font-size: 0.9rem;
@@ -50,88 +62,93 @@
       color: #aaa;
       text-align: center;
     }
+
+    .btn-group {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 10px;
+      margin-bottom: 15px;
+    }
   </style>
 </head>
 <body>
-  <h1>🚀 QR Code Scanner</h1>
+  <h1>📷 QR Code Scanner</h1>
+
+  <div class="btn-group">
+    <button class="button" onclick="startCamera()">▶️ Start Camera</button>
+    <button class="button" onclick="stopCamera()">⏹ Stop Camera</button>
+    <label class="upload-label" for="fileInput">📁 Upload QR Image</label>
+    <input type="file" accept="image/*" id="fileInput" onchange="uploadAndScanQR(event)" />
+  </div>
+
   <div id="reader"></div>
-
-  <label class="upload-label" for="fileInput">📁 Upload QR Image</label>
-  <input type="file" accept="image/*" id="fileInput" onchange="uploadAndScanQR(event)" />
-
-  <div id="status">Checking permissions...</div>
+  <div id="status">Camera is off</div>
 
   <script>
     const readerId = "reader";
     const status = document.getElementById("status");
     const html5QrCode = new Html5Qrcode(readerId);
-    const config = { fps: 25, qrbox: { width: 250, height: 250 } };
+    let cameraRunning = false;
 
-    // Start scanning with permission
-    async function checkAndStartCamera() {
-      if (location.protocol !== 'https:' && location.hostname !== 'localhost') {
-        status.textContent = "❌ Camera requires HTTPS. Please use a secure connection.";
-        return;
-      }
+    const config = {
+      fps: 25,
+      qrbox: { width: 250, height: 250 }
+    };
 
-      try {
-        // Ask for camera access using getUserMedia
-        await navigator.mediaDevices.getUserMedia({ video: true });
-
-        Html5Qrcode.getCameras().then(devices => {
-          if (devices && devices.length) {
-            html5QrCode.start(
-              { deviceId: devices[0].id },
-              config,
-              decodedText => {
-                handleResult(decodedText);
-                html5QrCode.stop();
-              },
-              error => {
-                // Ignore scan failures silently
-              }
-            ).catch(err => {
-              status.textContent = "❌ Failed to start camera: " + err;
-            });
-          } else {
-            status.textContent = "❌ No camera devices found.";
-          }
-        });
-      } catch (err) {
-        status.textContent = "❌ Camera permission denied.";
-      }
+    function startCamera() {
+      if (cameraRunning) return;
+      document.getElementById(readerId).style.display = "block";
+      html5QrCode.start(
+        { facingMode: "environment" },
+        config,
+        decodedText => {
+          handleResult(decodedText);
+          stopCamera(); // stop after first scan
+        },
+        error => {
+          // Optional: console.log(error);
+        }
+      ).then(() => {
+        cameraRunning = true;
+        status.textContent = "📷 Camera scanning...";
+      }).catch(err => {
+        status.textContent = "❌ Error starting camera: " + err;
+      });
     }
 
-    // Handle result
+    function stopCamera() {
+      if (!cameraRunning) return;
+      html5QrCode.stop().then(() => {
+        cameraRunning = false;
+        document.getElementById(readerId).style.display = "none";
+        status.textContent = "⏹ Camera stopped.";
+      }).catch(err => {
+        status.textContent = "❌ Error stopping camera: " + err;
+      });
+    }
+
     function handleResult(text) {
       status.textContent = "✅ Scanned: " + text;
-      if (text.startsWith("http")) {
+      if (text.startsWith("https")) {
         window.open(text, "_blank");
       } else {
         alert("Scanned Text: " + text);
       }
     }
 
-    // Upload QR
     function uploadAndScanQR(event) {
       const file = event.target.files[0];
       if (!file) return;
 
-      html5QrCode.clear().then(() => {
-        html5QrCode.scanFile(file, true)
-          .then(decodedText => {
-            handleResult(decodedText);
-          })
-          .catch(err => {
-            status.textContent = "❌ No QR code found in image.";
-          });
-      });
+      html5QrCode.scanFile(file, true)
+        .then(decodedText => {
+          handleResult(decodedText);
+        })
+        .catch(err => {
+          status.textContent = "❌ No QR code found in image.";
+        });
     }
-
-    // Initialize on page load
-    window.addEventListener("load", () => {
-      checkAndStartCamera();
-    });
   </script>
 </body>
 </html>
